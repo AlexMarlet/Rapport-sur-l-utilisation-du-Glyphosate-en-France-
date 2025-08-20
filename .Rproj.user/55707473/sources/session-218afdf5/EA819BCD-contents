@@ -1,0 +1,964 @@
+---
+  title: "Les déterminants de la quantité de Glyphosate acheté en France"
+  author: "Alexandre Marlet"
+  date: "2025-04-25"
+  output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+  
+```{r setup, include=FALSE,results = 'hide',message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=7,fig.pos ="ht", out.width = '(50%',out.extra = "",fig.align = 'center')
+getOption('xtable.comment',TRUE)
+
+knitr::opts_chunk$set(echo = FALSE) # By default, hide code; set to TRUE to see code
+knitr::opts_chunk$set(fig.pos = 'p') # Places figures on their own pages
+knitr::opts_chunk$set(out.width = '80%', dpi=300) # Figure resolution and size
+knitr::opts_chunk$set(fig.env="figure") # Latex figure environment
+```
+
+
+```{r include=FALSE}
+library("lubridate")
+library("magrittr")
+library("ggplot2")
+library("ggpubr")
+library("rticles")
+library("hrbrthemes")
+library("forcats")
+library("ggridges")
+library("cowplot")
+library("ggthemes")
+library("fmsb")
+library("wesanderson")
+library("knitr", "rmarkdown", "markdown")
+library("tidyverse")
+library("tidyr")
+library("dplyr")
+library("plotly")
+library("paletteer")
+library("extrafont")
+library("kableExtra")
+library('data.table')
+library("readxl")
+library("jtools")
+library("ggrepel")
+library("fastDummies")
+library("xtable")
+library("sjPlot")
+library("sjmisc")
+library("sjlabelled")
+library("lmtest")
+library("modelsummary")
+library("kableExtra")
+library("gt")
+library("corrplot")
+library("mice")
+library("sandwich")
+library("psych")
+library("performance")
+library("see")
+library("patchwork")
+library("stargazer")
+library("car")
+library("nlme")
+library("sandwich")
+library("ggtext")
+library("patchwork")
+library("sf")
+library("scales")
+
+tz <- Sys.timezone()
+```
+
+# Introduction
+
+Les pesticides prennent une place importante dans les productions agricoles en France pour faire face à une concurrence internationale et aux espèces parasites envahissantes qui réduisent les rendements des productions agricoles. Face au constat de ce problème, plusieurs substances s'imposent dont celle faisant partie de notre étude : "le Glyphosate".
+Dans notre travail, nous porterons notre analyse sur cette substance au travers de la problématique suivante :
+
+Quels sont les déterminants de la quantité de Glyphosate achetée dans les départements français ? Nous analyserons dans notre travail l'impact des types de culture dans le département (céréales, vignes), sa surface agricole utilisée et sa production brute standard sur la quantité de glyphosate achetée.
+
+Autrement dit, par l'analyse de la quantité de glyphosate achetée par département et de la culture dominante, la production brute standard et la surface agricole utilisée par département, nous chercherons à expliquer si une culture a un impact significatif sur la quantité de glyphosate achetée et chercherons si cette relation est davantage significative en fonction de la PBS ou de la SAU.
+
+Dans notre étude, nous mobiliserons deux sources principales de données. D'une part, les données issues du recensement agricole de 2020 (dernières données en date), qui fournissent des informations structurelles sur les caractéristiques agricoles des départements (types de cultures, surfaces agricoles, production brute standard). D'autre part, les données des quantité acheté de glyphosate de 2022.
+
+Bien que ces deux jeux de données proviennent de périodes différentes, leur agrégation est économiquement justifiée par la relative stabilité des structures agricoles sur une courte période de deux ans. En effet, les évolutions de l’organisation agricole à l’échelle départementale restent généralement limitées à court terme, rendant les variables de 2020 représentatives de la situation contemporaine en 2022. Toutefois, nous reconnaissons qu'une légère évolution, notamment liée aux politiques environnementales récentes, pourrait avoir affecté certaines pratiques. Cette limite sera prise en compte dans l’interprétation des résultats.
+
+## Sources des données
+
+substance
+(<https://www.data.gouv.fr/fr/datasets/achats-de-pesticides-par-code-postal/>)
+
+vignes
+(<https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-partvigne20/detail/>)
+
+pbs
+(<https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-pbs20/detail/>)
+
+sau
+(<https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-sau20/detail/>)
+
+cereales
+(<https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-partcereoleopro20/detail/>)
+
+## Chargement et fusion des bases de données
+Nous fusionnons les bases de données pour obtenir une seule et même base contenant les informations utiles. Ces bases sont réunies par la variable en commun "code_departement". Les informations manquantes représentées par le symbole N/A seront comptabilisées comme une valeur nulle c'est-à-dire "0". Dans un premier temps nous avions retiré ces valeurs, mais nous perdions trop d'information et cela faussait l'analyse et les modèles. Nous avons fait le choix de remplacer les N/A par "0" de manière à garder la donnée des autres variables pour les départements ayant N/A comme information et ne pas omettre totalement la ligne sous prétexte que qu'une donnée est manquante. Pour être encore plus précis nous pourrions dans un second temps envisager de faire la moyenne des départements voisins pour déduire la donnée d'un département. Quelque soit la méthode, une donnée manquante ne peut pas être remplacée, elle peut aux mieux être estimée et approchée le tout est de chercher à l'approcher le plus fiablement et réalistiquement possible et cela requiert une maîtrise du sujet et des données traiter. Par exemple dans notre cas, la culture de vignes est souvent très localisée: les appelation change parfois d'une parcelle à une autre ce qui détermine la prépondérance de la culture viticole à certains endroits et sont absence dans d'autres. Faire la moyenne de trois départements dont deux ayant une appellation prestigieuse (particulièrement pourvu en vigne) et un troisième sans appellation particulière (avec aucune vignes), si la donnée est manquante pour le troisième alors l'estimer en moyenne de ses voisins serait faux. Mais l'estimer par un "0" serait faux aussi. Il s'agit alors de l'estimer en trouvant une méthode adaptée.
+
+```{r include=FALSE}
+
+df_substance_gly <- read_delim("data/data_glyphosate.csv", delim = ",", show_col_types=FALSE)
+
+df_substance <- read_delim("data/BNVD_TRACABILITE_20231023_ACHAT_DPT_SUBSTANCE_2022.csv",
+                           delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types = FALSE)
+
+df_substance <- df_substance %>%
+  mutate(substance_clean = trimws(tolower(substance)))
+
+filtered_substance <- df_substance %>%
+  filter(substance_clean %in% c("glyphosate"))
+
+substance_c <- filtered_substance %>%
+  group_by(code_departement) %>%
+  mutate(somme_dep=sum(quantite_substance, na.rm=TRUE)) %>%
+  select(code_departement,somme_dep)%>%distinct()
+
+cereales <- read_delim("data/data cereales.csv", show_col_types=FALSE)
+
+pbs <- read_delim("data/data pbs.csv", delim = ";",
+                  escape_double = FALSE, trim_ws = TRUE, show_col_types=FALSE)
+
+sau <- read_delim("data/data sau.csv", delim = ";",
+                  escape_double = FALSE, trim_ws = TRUE, show_col_types=FALSE)
+
+vignes <- read_delim("data/data vignes.csv",
+                     delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types=FALSE)
+
+names(cereales)
+donnees <- inner_join(substance_c, cereales, by = "code_departement")
+donnees <- inner_join(donnees, vignes, by = c("code_departement", "Libellé"))
+donnees <- inner_join(donnees, pbs, by = c("code_departement", "Libellé"))
+donnees <- inner_join(donnees, sau, by = c("code_departement", "Libellé"))
+
+#fusion substance_c et données
+fusiondonnees <- inner_join(donnees, substance_c, by = "code_departement")%>%
+  distinct(code_departement, .keep_all = TRUE)
+
+names(fusiondonnees)
+
+
+fusiondonnees <- fusiondonnees %>%
+  rename(pbs="PBS en 2020",
+         sau="SAU en 2020",
+         cereales="Part des céréales et oléo-protéagineux dans la SAU, 2020",
+         vignes="Part des vignes dans la SAU, 2020",
+         somme_dep="somme_dep.x"
+  ) %>%
+  select(-c("somme_dep.y"))
+
+
+names(fusiondonnees)
+
+#fusiondonnees_bu <- fusiondonnees %>%
+#select( -amm, -substance, -cas, -classification,
+#    -classification_mention, -achat_etranger, -substance_clean, -Libellé, -quantite_substance)
+```
+
+
+# Description des bases de données
+Nous travaillons sur 5 bases de données que nous fusionnons pour étudier l'utilisation de substances phytosanitaires par département en fonction des cultures sur des observations de 2022.
+
+
+```{r include=FALSE}
+"passage des variable en log"
+names(fusiondonnees)
+# IHS : log(x + sqrt(x ^ 2 + 1)
+
+fusiondonnees <- fusiondonnees %>%
+  dplyr::mutate(
+    log_pbs = log(`pbs` + sqrt(`pbs` ^ 2 + 1)),
+    log_sau = log(`sau` + sqrt(`sau` ^ 2 + 1))
+  )
+```
+
+
+# Dictionnaire des variables
+
+code_departement - numéro indicatif pour chaque département
+
+departement - nom du département
+
+somme_dep - quantité de glyphosate achetée dans le département (exprimée en Kg)
+
+cereales - part des céréales et oléagineux dans la SAU (en % de la SAU)
+
+vignes - part de vignes dans la SAU (en % de la SAU)
+
+pbs - production brute standard, production potentielle totale des exploitations par département, résultant des valeurs moyennes des rendements et des prix observés sur la période 2015 à 2019, exprimée en euros.
+
+log_pbs - le logarithme de la variable PBS
+
+sau - superficie agricole utilisée (en hectares), comprenant les céréales, les oléagineux, protéagineux et plantes à fibres, les autres plantes industrielles destinées à la transformation, les cultures fourragères et les surfaces toujours en herbe, les légumes secs et frais, les fraises et les melons, les pommes de terre, les fleurs et plantes ornementales, les vignes, les autres cultures permanentes (vergers, petits fruits, pépinières ligneuses), les jachères, les jardins et vergers familiaux.
+
+log_sau - le logarithme de la variable SAU
+
+### Représentation graphique des données et intuitions
+#### Carte France et répartition
+```{r}
+
+# 1. Chargement des contours départementaux
+url <- "https://github.com/gregoiredavid/france-geojson/raw/master/departements-version-simplifiee.geojson"
+france_dep <- st_read(url, quiet = TRUE) %>%
+  select(code = code, nom = nom, geometry) %>%
+  mutate(code = ifelse(nchar(code) == 1, paste0("0", code), code))
+
+# 2. Préparation des données SAU (en supposant que fusiondonnees contient vos données)
+sau_dep <- fusiondonnees %>%
+  group_by(code_departement) %>%
+  summarise(sau = sum(sau, na.rm = TRUE)) %>% # Somme de la SAU par département
+  mutate(
+    code_departement = as.character(code_departement),
+    # Catégorisation pour une visualisation optimale
+    cat_sau = cut(sau,
+                 breaks = c(0, 150000, 200000, 250000, 300000, 350000, Inf),
+                 labels = c("<150k ha", "150-200k", "200-250k",
+                           "250-300k", "300-350k", ">350k"),
+                 right = FALSE)
+  )
+
+# 3. Jointure avec les données géographiques
+carte_sau <- france_dep %>%
+  left_join(sau_dep, by = c("code" = "code_departement"))
+
+# 4. Création de la carte
+ggplot(carte_sau) +
+  geom_sf(aes(fill = cat_sau), color = "white", size = 0.2) +
+  scale_fill_manual(
+    values = c("#f0f9e8", "#bae4bc", "#7bccc4", "#43a2ca", "#3868a0", "#08306b"),
+    name = "Surface Agricole Utilisée",
+    na.value = "grey90",
+    drop = FALSE
+  ) +
+  labs(
+    title = "Surface Agricole Utilisée par département",
+    subtitle = "Total en hectares (moyenne 2020)",
+    caption = "Source : Agreste - Recensement agricole"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5, color = "grey40"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    legend.position = "right"
+  )
+```
+Cette première carte permet de se rendre compte de la répartition des terres agricoles en France. Le Sud-Est, la Corse ainsi que la région parisienne proche sont plutôt faiblement pourvus de terres agricoles. Cela s'explique principalement par le relief pour le Sud-Est et la Corse, ainsi que par la grande zone urbaine de Paris et sa périphérie.
+
+```{r fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
+
+
+url <- "https://github.com/gregoiredavid/france-geojson/raw/master/departements-version-simplifiee.geojson"
+france_dep <- st_read(url, quiet = TRUE) %>%
+  select(code = code, nom = nom, geometry) %>%
+  mutate(code = ifelse(nchar(code) == 1, paste0("0", code), code))
+
+# 1. Carte des céréales ----
+cereales_dep <- fusiondonnees %>%
+  group_by(code_departement) %>%
+  summarise(part_cereales = mean(cereales, na.rm = TRUE)) %>%
+  mutate(code_departement = as.character(code_departement))
+
+carte_cereales <- france_dep %>%
+  left_join(cereales_dep, by = c("code" = "code_departement"))
+
+plot_cereales <- ggplot(carte_cereales) +
+  geom_sf(aes(fill = part_cereales), color = "white", size = 0.2) +
+  scale_fill_gradientn(
+    colours = c("#f7fcf5", "#ccebc5", "#7bccc4", "#0868ac"),
+    name = "Part des céréales (%)",
+    na.value = "grey90",
+    limits = c(0, 100)
+  ) +
+  labs(
+    title = "Part des cultures céréalières dans la SAU",
+    subtitle = "Pourcentage moyen de la SAU (2020)"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 22),
+    plot.subtitle = element_text(size = 18, color = "grey40"),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 16),
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+# 2. Carte des vignes ----
+fusiondonnees <- fusiondonnees %>%
+  mutate(vignes = as.numeric(as.character(vignes)))
+
+vignes_dep <- fusiondonnees %>%
+  group_by(code_departement) %>%
+  summarise(part_vignes = mean(vignes, na.rm = TRUE)) %>%
+  mutate(
+    code_departement = as.character(code_departement),
+    cat_vignes = cut(part_vignes,
+                     breaks = c(0, 1, 5, 10, 20, 100),
+                     labels = c("<1%", "1-5%", "5-10%", "10-20%", ">20%"),
+                     right = FALSE)
+  )
+
+carte_vignes <- france_dep %>%
+  left_join(vignes_dep, by = c("code" = "code_departement"))
+
+plot_vignes <- ggplot(carte_vignes) +
+  geom_sf(aes(fill = cat_vignes), color = "white", size = 0.2) +
+  scale_fill_manual(
+    values = c("#feebe2", "#fbb4b9", "#f768a1", "#c51b8a", "#7a0177"),
+    name = "Part de la vigne\n dans la SAU",
+    na.value = "grey90",
+    drop = FALSE
+  ) +
+  labs(
+    title = "Part de la vigne dans la SAU",
+    subtitle = "Pourcentage moyen (2020)"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 22),
+    plot.subtitle = element_text(size = 18, color = "grey40"),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 16),
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+# 3. Carte glyphosate catégorielle ----
+glyphosate_dep <- fusiondonnees %>%
+  group_by(code_departement) %>%
+  summarise(
+    qte_glyphosate = sum(somme_dep, na.rm = TRUE)
+  ) %>%
+  mutate(
+    code_departement = as.character(code_departement),
+    cat_glypho = cut(qte_glyphosate,
+                     breaks = c(0, 5000, 10000, 20000, 50000, 60000, Inf),
+                     labels = c("<5t", "5-10t", "10-20t", "20-50t", "50-60t", ">60t"),
+                     right = FALSE)
+  )
+
+carte_glypho <- france_dep %>%
+  left_join(glyphosate_dep, by = c("code" = "code_departement"))
+
+plot_glypho_cat <- ggplot(carte_glypho) +
+  geom_sf(aes(fill = cat_glypho), color = "white", size = 0.2) +
+  scale_fill_manual(
+    values = c("#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#e31a1c"),
+    name = "Achats de glyphosate",
+    na.value = "grey90",
+    drop = FALSE
+  ) +
+  labs(
+    title = "Achats de glyphosate par département",
+    subtitle = "Quantités totales en kg (2022)"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 22),
+    plot.subtitle = element_text(size = 18, color = "grey40"),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 16),
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+# 4. Carte glyphosate log ----
+plot_glypho_log <- ggplot(carte_glypho) +
+  geom_sf(aes(fill = log1p(qte_glyphosate)), color = "white", size = 0.2) +
+  scale_fill_gradientn(
+    colours = c("#f7fcb9", "#addd8e", "#41ab5d", "#006837"),
+    name = "Glyphosate\n(log kg)",
+    na.value = "grey90",
+    breaks = log(c(1, 10, 100, 1000, 10000, 100000)),
+    labels = c("1", "10", "100", "1t", "10t", "100t")
+  ) +
+  labs(
+    title = "Achats de glyphosate (échelle log)",
+    subtitle = "Quantités en kg (transformées log+1, 2022)"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", size = 22),
+    plot.subtitle = element_text(size = 18, color = "grey40"),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 16),
+    plot.margin = unit(c(0, 0, 0, 0), "cm")
+  )
+
+# Disposition 2x2 avec patchwork ----
+(plot_cereales + plot_vignes) /
+  (plot_glypho_cat + plot_glypho_log) +
+  plot_annotation(
+    caption = "Sources : Agreste - Recensement agricole 2020 | BNVD 2022",
+    theme = theme(
+      plot.caption = element_text(hjust = 0.5, color = "grey40", size = 20)
+    ) &
+      theme(legend.box.margin = margin(0, 0, 0, 0),
+            legend.key.height = unit(0.5, "cm"))
+  )
+```
+On constate que les zones avec une importante production viticole comme la région bordelaise, la côte méditerranéenne ainsi que la Bourgogne sont des zones où l'achat de glyphosate est important. On fait le même constat dans les zones à forte production céréalière (plutôt dans le nord de la France, en périphérie de la région parisienne et dans le Sud-Ouest). A contrario, dans les zones montagneuses, moins propices à ces cultures, représentant davantage des terres d'élevage (grande surface de pâturage), on y retrouve une plus faible quantité de glyphosate acheté comme on le constate sur la carte principalement dans les Alpes, le Massif central et les Pyrénées. Notre intuition nous induit vers une forte corrélation entre la production viticole et l'utilisation de glyphosate, tandis que la corrélation entre la production céréalière et l'utilisation de glyphosate est moins évidente, et peut être même fausse au vu des graphiques. Tout de même, si nous ne pouvons pas clairement faire un lien direct entre les cultures céréalières et une forte utilisation de glyphosate, force est de constater une évidente corrélation des régions avec les plus fortes surfaces agricoles utilisée (SAU) et les régions avec les plus fortes quantité de glyphosate achetée.
+
+Les données manquantes concernant la part de vignes dans la SAU sont dues au fait qu'il n'y ait pas de recensement agricole pour certaines régions puisqu'il n'y a pas ou peu d'activité agricole, c'est le cas de la Seine-Saint-Denis.
+
+# Statistiques descriptives
+## Statistiques univariées
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fusiondonnees <- fusiondonnees %>%
+  mutate(across(everything(), ~ifelse(is.na(.), 0, .))) %>%  # Ici on utilise ifelse
+  mutate(log_somme_dep = log(somme_dep))
+datasummary_skim(fusiondonnees)
+```
+On peut déduire de ce tableau que la quantité moyenne de Glyphosate achetée par département en France est de 57281.7 kg. Tandis que le département achetant le minimum de Glyphosate en achète 1,8 kg, et le départment qui en achetant le plus en utilise 199 723,1 kg. Les observations comptées pour céréales sont de 93 car ici seulement les observations uniques (comprendre differentes) sont prises en comptes pour vignes c'est la même chose. On en conclut que beaucoup d'observartions sont identiques (les valeurs sont similaires dans plusieurs départements).
+
+```{r message=FALSE, warning=FALSE}
+# Solution finale testée et vérifiée
+top3_glyphosate_correct <- fusiondonnees %>%
+  ungroup() %>%  # Supprimer tout regroupement existant
+  arrange(desc(somme_dep)) %>%
+  slice(1:3) %>%
+  select(Département = Libellé, `Quantité (kg)` = somme_dep) %>%
+  mutate(`Quantité (kg)` = round(`Quantité (kg)`, 1))
+
+# Création du tableau avec contrôle d'erreur
+if(ncol(top3_glyphosate_correct) == 2 && nrow(top3_glyphosate_correct) > 0) {
+  knitr::kable(top3_glyphosate_correct,
+               caption = "TOP 3 DES DÉPARTEMENTS LES PLUS UTILISATEURS DE GLYPHOSATE",
+               align = c('l', 'r'),
+               format.args = list(big.mark = " ")) %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover"),
+      full_width = FALSE,
+      position = "center",
+      font_size = 14
+    ) %>%
+    kableExtra::row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") %>%
+    kableExtra::column_spec(1, bold = TRUE, width = "8cm") %>%
+    kableExtra::footnote(
+      general = "Source : Données BNVD 2022 - Ministère de l'Agriculture",
+      general_title = ""
+    )
+} else {
+  message("ERREUR : La structure des données ne permet pas de créer le tableau.")
+  print(str(top3_glyphosate_correct))
+}
+```
+
+```{r}
+# Top 3 départements céréaliers
+top_cereales <- fusiondonnees %>%
+  ungroup() %>%
+  top_n(3, wt = cereales) %>%  # Sélection directe des 3 premiers
+  arrange(desc(cereales)) %>%  # Tri par ordre décroissant
+  transmute(
+    Rang = row_number(),
+    Département = Libellé,
+    `Part de céréales (%)` = round(cereales, 1),
+    `Surface agricole (ha)` = format(sau, big.mark = " ")
+  )
+
+# Affichage avec vérification
+if (nrow(top_cereales) == 3) {
+  top_cereales %>%
+    select(-Rang) %>%  # On garde Rang que pour la version markdown
+    knitr::kable(
+      caption = "TOP 3 des départements céréaliers",
+      col.names = c("Département", "Part de céréales (%)", "SAU totale"),
+      align = c("l", "c", "r")
+    ) %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE,
+      position = "center",
+      font_size = 14
+    ) %>%
+    kableExtra::row_spec(0, bold = TRUE, color = "white", background = "#8B4513") %>%
+    kableExtra::column_spec(2, color = "black", background = "#FFF8DC") %>%
+    kableExtra::footnote(
+      general = "Source : Agreste - Recensement agricole 2020",
+      general_title = ""
+    )
+} else {
+  cat("Erreur : Les données n'ont pas pu être traitées correctement.\n")
+  print(head(fusiondonnees %>% select(Libellé, cereales, sau)))
+}
+```
+
+```{r}
+# Top 3 des départements viticoles avec SAU
+top_vignes <- fusiondonnees %>%
+  ungroup() %>%
+  mutate(vignes = as.numeric(vignes)) %>%  # Conversion sécurité
+  top_n(3, wt = vignes) %>%  # Top 3 vignes
+  arrange(desc(vignes)) %>%  # Tri décroissant
+  transmute(
+    Département = Libellé,
+    `Part vignes (%)` = round(vignes, 1),
+    `SAU totale (ha)` = format(sau, big.mark = " ")  # Formatage milliers
+  )
+
+# Vérification et affichage
+if (nrow(top_vignes) == 3) {
+  knitr::kable(top_vignes,
+               caption = "TOP 3 DES DÉPARTEMENTS LES PLUS VITICOLES",
+               align = c('l', 'c', 'r')) %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE,
+      position = "center",
+      font_size = 14
+    ) %>%
+    kableExtra::row_spec(0, bold = TRUE, color = "white", background = "#4B0082") %>%  # Indigo
+    kableExtra::column_spec(3, bold = TRUE) %>%
+    kableExtra::footnote(
+      general = "Source : Agreste - Recensement agricole 2020 | SAU en hectares",
+      general_title = ""
+    )
+} else {
+  # Mode diagnostic
+  cat("ERREUR : Structure inattendue des données.\nVariables disponibles :\n")
+  print(names(fusiondonnees))
+  cat("\nExemple de données vignes :\n")
+  print(head(fusiondonnees %>% select(Libellé, vignes, sau)))
+}
+```
+
+Dans ces tableaux, on voit le top 3 des départements qui achètent le plus de glyphosate ainsi que les départements qui ont le plus de céréales et les départements qui ont la plus grande production viticole. On voit donc que ce ne sont aucun des départements les plus céréaliers et les plus viticoles qui sont les départements qui achètent le plus de glyphosate. Bien que nous pensions jusque-là, au vu des résultats, que les déterminants de la quantité de glyphosate achetée étaient la production viticole et la production céréalière, la réalité est plus nuancée et on constate que même si ce sont des facteurs importants, d'autres facteurs déterminent aussi de manière importante la quantité de glyphosate achetée.
+
+## Statistiques bivariées
+### Correlations entre les variables
+```{r echo=FALSE}
+fusiondonnees$sq_log_sau <- fusiondonnees$log_sau^2
+fusiondonnees1 <- fusiondonnees[sapply(fusiondonnees, is.numeric)]
+mcor <- cor(fusiondonnees1, use = "complete.obs")
+corrplot(
+  mcor,
+  method = "color",      
+  type = "upper",        
+  order = "hclust",      
+  tl.col = "black",      
+  number.cex = 0.8,      
+  number.font = 2,        
+  addCoef.col = "black",
+)
+```
+Nous remarquons aussi que la corrélation entre la log_pbs (logarithme de la Production Brute Standard) et la log_sau (logarithme de la Surface Agricole Utilisée) est très forte (0,92), ce qui est facile à envisager puisque la production brute standard dépend inévitablement de la surface cultivée (le seul cas contraire serait une terre avec un rendement tel qu'elle suffirait à substituer des hectares supplémentaires, ce qui serait une poule aux œufs d'or, mais entre nous, personne n'en a jamais vu...). C'est aussi le cas d'une corrélation forte (0,98) entre la variable log_sau et sq_log_sau, ce qui est évident puisque la variable sq_log_sau est juste le carré de la variable log_sau. Ensuite, nous retrouvons également une corrélation entre "somme_dep", qui correspond à la quantité totale de glyphosate achetée dans le département, et la variable "cereales". Cette corrélation de 0,80 ne serait pas apparue si clairement si nous nous étions contentés des cartes vues plus haut. On peut donc écarter l’idée d'un overfitting.
+
+### Test de plusieurs modèles
+```{r echo=FALSE}
+modele_mco <- lm(log_somme_dep ~ log_sau + log_pbs + cereales + vignes,
+                 data = fusiondonnees)
+
+modele_mco2 <- lm(log_somme_dep ~ log_sau + cereales + vignes,
+                 data = fusiondonnees)
+
+#Estimation du troisième
+fusiondonnees <- fusiondonnees %>%
+  mutate(
+    prod_moy = pbs / sau,
+    log_prod_moy = log(prod_moy)
+  )
+  modele_mco3 <- lm(log_somme_dep ~ log_sau + log_prod_moy + cereales + vignes, data = fusiondonnees)
+ 
+    #Estimation du quatrieme modèle
+   modele_mco4<- lm(log_somme_dep ~ log_sau + sq_log_sau + cereales + vignes,
+                            data = fusiondonnees)
+ 
+  #Estimation d'un cinquieme modèle
+modele_mco5 <- lm(log_somme_dep ~ log_pbs + cereales + vignes,
+                  data = fusiondonnees)
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+results<-list(modele_mco,modele_mco2,modele_mco3,modele_mco4,modele_mco5)
+results<-list ("M1"= modele_mco,
+               "M2"= modele_mco2,
+               "M3"= modele_mco3,
+               "M4"= modele_mco4,
+               "M5"= modele_mco5
+)
+modelsummary(results, stars = c('*'=1, '**'=.05,'***'= 0.01))
+modelplot (results, coef_omit='Interc')
+```
+D'après le R² ajusté, les critères AIC et BIC, tous nous portent à croire que le modèle 4 est bien meilleur que les 4 autres.
+
+## Notre meilleur modèle à estimer (MCO4)
+$$\log(\text{somme_dep}_i) = \text{const} + \beta_1 \log(\text{sau}_i) + \beta_2 \log(\text{sau}_i)^2 + \beta_3 (\text{cereales}_i) + \beta_4 (\text{vignes}_i) + u_i$$
+On cherche à expliquer la quantité de glyphosate en fonction de la surface agricole exploitée, de la production brute standard, de la part de céréales dans l'exploitation, de la part de vignes dans l'exploitation. Le but étant de déterminer si la surface exploitée a un impact significatif sur la quantité de substance utilisée (ici le glyphosate), ainsi que déterminer si la culture, que ce soit les céréales ou les vignes, a un impact sur les quantités de glyphosate utilisés (savoir si en moyenne on utilise plus de glyphosate dans une culture que dans une autres).
+
+### Meilleur modèle estimé et interprétation des paramètres
+$$
+\log(\widehat{\text{somme_dep}_i}) = 10.454 - 1.915 \log(\text{sau}_i) + 0.137 \log(\text{sau}_i)^2 + 0.034\, \text{cereales}_i + 0.061\, \text{vignes}_i
+$$
+Lorsque tout les paramètres sont égaux à 0, le log_somme_dep est de 10,454.
+$$
+\frac{\partial \widehat{\log(\text{somme_dep}_i)}}{\partial \log(\text{sau}_i)} = -1.915 + 2 \times 0.137 \log(\text{sau}_i) => -1.641 \log(\text{sau}_i)
+$$
+Lorsque la SAU augmente de 1%, la quantité de glyphosate utilisée baisse de 1,641%. Puis, elle augmente à partir d'un certain seuil, d'où l'effet quadratique.
+Lorsque la part de céréales dans la SAU augmente de 1%, la quantité de glyphosate achetée augmente de 3.4%.
+Lorsque la part de vignes dans la SAU augmente de 1%, la quantité de glyphosate utilisée augmente de 6.1%.
+
+Tous les paramètres de notre modèle sont significatifs au seuil de 99%.
+
+$$log(sau_i) = \frac{\beta_1}{2 \times \beta_2} = 7.00$$
+  $$Donc\space sau_i = \exp(6.989) = 1095$$
+  
+
+```{r}
+# Récupérer les coefficients
+coefs <- coef(modele_mco4)
+
+# Coefficient devant log_sau (linéaire)
+b1 <- coefs["log_sau"]
+
+# Coefficient devant log_sau^2
+b2 <- coefs["sq_log_sau"]
+
+# Calcul du point ou l'effet marginal devient nul
+log_sau_star <- -b1 / (2 * b2)
+sau_star <- exp(log_sau_star)
+
+# Afficher le résultat
+cat("L'effet marginal devient nul à partir de : log(sau) =", round(log_sau_star, 2),
+    "soit sau =", round(sau_star, 0), "hectares\n")
+```
+
+La valeur de 1095 hectares nous semble peu réaliste, on a plutôt l'impression que le point où l'effet marginal devient nul est hors de notre jeu de données.
+
+### Qualité d'ajustement
+#### Test de Fisher
+
+$$\begin{aligned}
+H_0 &: \hat{\beta}_k = 0 \quad k \in \{1, \dots, 4\} \\
+H_1 &: \hat{\beta}_k \neq 0 \quad k \in \{1, \dots, 4\}
+\end{aligned}$$
+  
+  
+  Règle de décision : p-value < 0,05, rejet de H0, le modèle est globalement significatif.
+
+```{r message=FALSE, warning=FALSE}
+test_fisher <- summary(modele_mco4)$fstatistic
+p_value <- pf(test_fisher[1], test_fisher[2], test_fisher[3], lower.tail = FALSE)
+
+# Affichage des résultats
+cat("Test de Fisher pour la significativité globale du modèle :\n",
+    "Statistique F =", round(test_fisher[1], 2), "\n",
+    "Degrés de liberté (modèle) =", test_fisher[2], "\n",
+    "Degrés de liberté (résidus) =", test_fisher[3], "\n",
+    "p-value =", format.pval(p_value, eps = 0.001), "\n")
+
+# Version tableautée pour le rapport
+resultats_fisher <- data.frame(
+  "Statistique F" = round(test_fisher[1], 2),
+  "ddl1" = test_fisher[2],
+  "ddl2" = test_fisher[3],
+  "p-value" = ifelse(p_value < 0.001, "< 0.001", round(p_value, 3))
+)
+
+kable(resultats_fisher, align = 'c', caption = "Test de Fisher - Significativité globale du modèle") %>%
+  kable_styling(full_width = FALSE)
+```
+P-value < 0,05, le modèle est globalement significatif.
+
+### Analyse du R2
+Le R2 du modèle MCO 4 (notre meilleur modèle) est de 0,733, autrement dit, 73,3% de la variance est expliquée par le modèle.
+
+## Respect des hypothèses H1 à H5.
+
+### H1 L'estimation de l'erreur est nulle
+$$E[u]=0$$
+
+```{r}
+res1 <- residuals(modele_mco4)
+t.test(res1)
+```
+
+H1 est bien respecté, l'espérance du terme d'erreur n'est pas significativement différente de 0.
+
+### H2 La variance de l'erreur est constante (Test d'hétéroscedasticité)
+ $$V[u]= \sigma^2_u$$
+
+#### Visualisation de l'hétéroscedasticité
+                                              
+                                              ```{r}
+                                              plot(fitted(modele_mco4), residuals(modele_mco4),
+                                                   main = "Diagnostic d'hétéroscédasticité",
+                                                   xlab = "Valeurs prédites",
+                                                   ylab = "Résidus",
+                                                   pch = 20, col = "steelblue")
+                                              abline(h = 0, col = "red", lty = 2)
+                                              ```
+                                              D'après ce graphique, on peut penser que l'on est en présence d'hétéroscédasticité.
+
+#### Test par la méthode de Breusch-Pagan
+```{r}
+test_bp <- bptest(modele_mco4)
+cat("Test de Breusch-Pagan :\n")
+print(test_bp)
+```
+Conclusion \n
+On peut conclure de ce test qu'il y a présence d'hétéroscédasticité.
+
+#### Correction de l'hétéroscédasticité si constat d'hétéroscédasticité
+#### Comparaisons Écarts Types robuste et FGLS
+```{r}
+# 1. Estimation avec erreurs robustes
+modele_robuste <- coeftest(modele_mco4, vcov = vcovHC(modele_mco4, type = "HC3"))
+
+# 2. Préparation FGLS
+residus2 <- residuals(modele_mco4)^2
+modele_variance <- lm(log(residus2) ~ log_sau + sq_log_sau + cereales + vignes,
+                     data = fusiondonnees)
+fusiondonnees$poids <- 1 / exp(fitted(modele_variance))
+modele_fgls <- lm(log_somme_dep ~ log_sau + sq_log_sau + cereales + vignes,
+                 data = fusiondonnees,
+                 weights = poids)
+
+# 3. Affichage comparatif
+modelsummary(
+  list(
+    "MCO Standard" = modele_mco4,
+    "MCO Robustes" = modele_robuste,
+    "FGLS" = modele_fgls
+  ),
+  stars = TRUE,
+  output = "gt",
+  gof_map = c("nobs", "r.squared", "adj.r.squared"),
+  title = "Comparaison des trois méthodes d'estimation",
+  coef_rename = c(
+    "(Intercept)" = "Constante",
+    "log_sau" = "log(SAU)",
+    "sq_log_sau" = "sq_log_sau",
+    "cereales" = "Part céréales (%)",
+    "vignes" = "Part vignes (%)"
+  ),
+  notes = c(
+    "Erreurs standards robustes (HC3) pour la colonne 'MCO Robustes'",
+    "FGLS utilise une pondération par l'inverse de la variance estimée"
+  )
+)
+```
+Les corrections par les écarts-types robustes modifient legèrement la significativité de nos paramètres mais ne changes pas les seuils dans notre modèles. Notre analyse reste semsiblement la même. La méthode des FGLS est meilleur que la méthode des MCO robuste car sont R2 ajusté est plus fiables.
+
+
+#### Comparaison des modèles MCO4 vs FGLS
+#### Visualisation des modèles
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Créer un data frame avec les éléments nécessaires
+plot_data <- data.frame(
+  fitted = fitted(modele_mco4),  # Utiliser le modèle lm original
+  resid = residuals(modele_mco4, type = "pearson"),
+  resid_robust = residuals(modele_mco4)/sqrt(diag(vcovHC(modele_mco4, type = "HC3")))
+)
+# Version alternative avec les résidus standard
+ggplot(plot_data, aes(x = fitted, y = resid)) +
+  geom_point(alpha = 0.6, color = "#0072B2") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "#D55E00") +
+  geom_smooth(method = "loess", se = FALSE, color = "#CC79A7") +
+  labs(title = "Modèle MCO4 (résidus standard)",
+       x = "Valeurs prédites",
+       y = "Résidus") +
+  theme_minimal()
+```
+
+
+#### Visualisation du modèle MCO4 robuste et comparaison avec MCO4 classique
+```{r}
+# Préparer les données
+coefs_robust <- coeftest(modele_mco4, vcov = vcovHC(modele_mco4, type = "HC1"))
+coef_comparison <- bind_rows(
+  as.data.frame(confint(modele_mco4)) %>%
+    mutate(term = rownames(.), type = "MCO standard"),
+  as.data.frame(confint(coefs_robust)) %>%
+    mutate(term = rownames(.), type = "MCO robuste")
+) %>%
+  rename(conf.low = `2.5 %`, conf.high = `97.5 %`) %>%
+  left_join(
+    bind_rows(
+      tidy(modele_mco4) %>% mutate(type = "MCO standard"),
+      tidy(coefs_robust) %>% mutate(type = "MCO robuste")
+    ),
+    by = c("term", "type")
+)
+
+# Graphique comparatif
+ggplot(coef_comparison %>% filter(term != "(Intercept)"),
+       aes(x = term, y = estimate, color = type)) +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high),
+                  position = position_dodge(width = 0.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  labs(title = "Comparaison des estimations MCO4 standard et robustes",
+       color = "Type d'estimation") +
+  theme_minimal()
+```
+
+```{r}
+library(scales)  # Charge le package scales une seule fois
+
+ggplot(fusiondonnees, aes(x = exp(log_sau), y = somme_dep/1000)) +
+  geom_point(aes(color = cereales > 50), alpha = 0.7, size = 3) +
+  geom_smooth(method = "lm", formula = y ~ poly(x, 2), color = "#E69F00") +
+scale_color_manual(values = c("#56B4E9", "#009E73"),
+                   labels = c("Céréales ≤ 50%", "Céréales > 50%")) +
+  scale_x_continuous(labels = comma) +  # <<< ICI pour formater l'axe X joliment
+  labs(title = "Utilisation de glyphosate par Surface Agricole Utilisée",
+       x = "Surface Agricole Utilisée(hectares)",
+       y = "Glyphosate (tonnes)",
+       color = "Type de culture") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top")
+
+```
+Ce graphique met en evidence la relation croissante entre la Surface agricole utilisée avec plus de 50% de cereale et la quantité de glyphosate achetée. On constate une certaine dispersion non lineaire  entre ces valeurs, ce qui suggere d'autres facteurs explicatifs sur la quantité de glyphosate achetée. D'autre part, on constate aussi qu'à Sau egale, les departements avec une part de cereale plus faible achetent moins de glyphosate.
+
+```{r}
+fusiondonnees %>%
+  pivot_longer(c(cereales, vignes), names_to = "culture", values_to = "part") %>%
+  ggplot(aes(x = part, y = log_somme_dep, color = culture)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = c("#D55E00", "#0072B2"),
+                    labels = c("Céréales", "Vignes")) +
+  labs(title = "Effet des cultures spécialisées sur les quantités de glyphosate utilisé",
+       x = "Part dans la SAU (%)",
+       y = "log(Glyphosate en kg)",
+       color = "Type de culture") +
+  facet_wrap(~culture, scales = "free_x") +
+  theme_light(base_size = 14)
+```
+```{r}
+
+# Création du dataframe des résidus
+residus_data <- data.frame(
+  Fitted = fitted(modele_fgls),
+  Residus = rstandard(modele_fgls)
+)
+
+# Graphique corrigé
+ggplot(residus_data, aes(x = Fitted, y = Residus)) +
+  geom_point(aes(color = abs(Residus) > 2), alpha = 0.7, size = 3) +
+  scale_color_manual(values = c("#56B4E9", "#CC79A7"),
+                    labels = c("Normaux", "Outliers"),
+                    name = "Type de résidu") +
+  geom_hline(yintercept = c(-2, 0, 2),
+            linetype = c(2, 1, 2),
+            color = c("red", "black", "red")) +
+  labs(
+    title = "Diagnostic des résidus du modèle FGLS",
+    subtitle = "Après correction de l'hétéroscédasticité",
+    x = "Valeurs prédites (log scale)",
+    y = "Résidus standardisés",
+    caption = paste("Test de Breusch-Pagan p =", round(bptest(modele_fgls)$p.value, 3))
+  ) +
+  annotate("text", x = Inf, y = -2.5, hjust = 1.1,
+          label = "Seuil à ±2 écarts-types", color = "red") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold")
+  )
+```
+
+```{r}
+# Ajouter une colonne de résidus dans fusiondonnees
+fusiondonnees$residus <- NA  # initialiser
+fusiondonnees$residus[!is.na(fusiondonnees$somme_dep) & !is.na(fusiondonnees$log_sau)] <- residuals(modele_fgls)
+
+# Puis plot
+plot_ly(fusiondonnees) %>%
+  add_markers(
+    x = ~log_sau,
+    y = ~log_somme_dep,
+    color = ~residus,
+    hoverinfo = "text",
+    text = ~paste("Département:", code_departement)
+  ) %>%
+  layout(title = "Résidus spatialisés du modèle FGLS",
+         xaxis = list(title = "log(SAU)"),
+         yaxis = list(title = "log(Glyphosate)"))
+```
+
+### H3 La matrice X est non aléatoire, la variable est non aléatoire pour toutes les observations
+
+Dans notre modèle, on pourrait être sujet à un problème de variables endogènes.
+
+- La variable SAU pourrait être corrélée avec notre terme d'erreur. Des événements extérieurs pourraient venir affecter en même temps l'utilisation de glyphosate et la SAU. On peut prendre comme exemple les conditions environnementales, la demande des utilisateurs, les caractéristiques économiques du marché ou encore les politiques agricoles.
+
+- Les variables vignes et céréales pourraient être corrélées avec notre terme d'erreur. Dans un cas météorologique ou géographique où l'utilisation de glyphosate est plus accrue, la culture de vignes ou de céréales est meilleure. On peut aussi avoir des raisons d'agrandissement de culture de vignes qui entraîne une utilisation plus forte de glyphosate comme herbicide.
+
+Dans le cas de notre modèle MCO4, la variable qui pourrait être sujette à l'endogénéité est la variable SAU. En effet, celle-ci est la plus sujette à ce problème, car elle ne suit pas nos intuitions de départ en étant négative, ce qui pourrait être expliqué par le fait qu'elle soit corrélée avec des facteurs non observés. Le problème est que notre base de données ne nous permet pas de faire de test pour ce problème d'endogénéité, car nous n'avons pas de variable instrumentale qui soit corrélée avec la SAU et non corrélée avec notre terme d'erreur.
+
+### H4 Le modèle est correctement spécifié
+
+```{r echo=FALSE}
+vif(modele_fgls)
+```
+
+Les résultats du VIF (Variance Inflation Factor) nous montrent que pour les variables céréales et vignes, il n'y a pas de problème de multicolinéarité, car leurs valeurs sont inférieures à 5. Les paramètres log_sau et sq_log_sau, en revanche, montrent un risque de multicolinéarité forte, car leur VIF est bien supérieur à 5, voire même supérieur à 10, ce qui indique une forte colinéarité. On en conclut donc que notre modèle n'est pas correctement spécifié, car nos variables log_sau et sq_log_sau sont multicolinéaires.
+
+### H5 La matrice X est de plein rang
+
+```{r echo=FALSE}
+fusiondonnees2 <- fusiondonnees1[sapply(fusiondonnees1, is.numeric)]
+mcor <- cor(fusiondonnees2, use = "complete.obs")
+corrplot(
+  mcor,
+  method = "color",      
+  type = "upper",        
+  order = "hclust",      
+  tl.col = "black",      
+  number.cex = 0.8,      
+  number.font = 2,        
+  addCoef.col = "black",
+)
+```
+
+La matrice est bien de plein rang, la colinéarité forte entre $log(sau_i)$ et $log(sau^2_i)$ est due au fait que c'est la même variable que nous avons transformée pour la mettre au carré afin de capter les relations quadratiques de cette variable explicative avec la variable dépendante.
+
+## Modèle final
+### Interprétation
+
+```{r echo=FALSE}
+cov1 <- vcovHC(modele_fgls, type = "HC1")
+robust_se <- sqrt(diag(cov1))
+stargazer(modele_fgls, type = "text")
+```
+
+$$
+\log(\widehat{\text{somme_dep}_i}) = 9.380 - 1.29 \log(\text{sau}_i) + 0.098 \log(\text{sau}_i)^2 + 0.027\, \text{cereales}_i + 0.042\, \text{vignes}_i
+$$
+$$
+\frac{\partial \widehat{\log(\text{somme_dep}_i)}}{\partial \log(\text{sau}_i)} = -1.915 + 2 \times 0.137 \log(\text{sau}_i) => -1.641 \log(\text{sau}_i)
+$$
+Lorsque tout les paramètres sont égaux à 0, le log_somme_dep est de 9.38.
+Lorsque la SAU augmente de 1%, la quantité de glyphosate utilisée baisse de 1,094%. Puis, elle augmente à partir d’un certain seuil, d’où l’effet quadratique.
+Lorsque la part de céréales dans la SAU augmente de 1%, la quantité de glyphosate achetée augmente de 2.7%.
+Lorsque la part de vignes dans la SAU augmente de 1%, la quantité de glyphosate utilisée augmente de 4.2%.
+La part de la variance expliquée par le modèle est de 79.4%.
+Tous les paramètres de notre modèle sont significatifs au seuil de 99%.
+
+### Performance du modèle
+
+```{r echo=FALSE, fig.height=5, fig.width=8}
+check_predictions(modele_fgls)
+```
+Ce graphique nous montre que les estimations que nous avons faites se rapprochent des valeurs observées. On en conclut que notre modèle est plutôt performant.
+
+## Conclusion
+On conclut que toutes les variables sont significatives. Les facteurs observés dans notre analyse sont tous responsables de la détermination de la quantité de glyphosate, cependant leur importance est inégale.
+Après recherche et implémentation de différents modèles, notre modèle 4 est le plus pertinent et le plus correct selon les critères AIC et BIC. On voit que toutes les variables sont significatives, c'est-à-dire que tous les paramètres ont leur importance dans la détermination de la quantité de glyphosate utilisée. Cependant, il semble, comme le montrent ces résultats et le test de l'hypothèse H4, qu'il manque des variables importantes, bien que le R² soit de 79,4%. Cependant, nous n'avons pas de multicolinéarité. Le modèle est performant et nous permet d'affirmer avec une certaine certitude que les cultures céréales et vignes, ainsi que la surface agricole utilisée, ont tous un impact dans la détermination de la quantité de glyphosate achetée.
+
+--
