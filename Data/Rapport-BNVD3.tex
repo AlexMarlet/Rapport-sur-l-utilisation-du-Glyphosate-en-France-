@@ -1,0 +1,321 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{anyfontsize}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Les détérminents de la consommation de glyphosate en France},
+  pdfauthor={Caleb Colin / Brice Perroud / Lucas Gerardy France / Alexandre Marlet},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Les détérminents de la consommation de glyphosate en France}
+\author{Caleb Colin / Brice Perroud / Lucas Gerardy France / Alexandre
+Marlet}
+\date{2025-03-30}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}\label{introduction}
+
+Les pesticides prennent une place importante dans les productions
+agricoles en france pour faire face à une concurrence internationale.
+
+Problématique: Existe-t-il une corrélation entre la répartition des
+types de cultures par département (céréale, viticulture) et la
+production brut standard ainsi que la surface agricole utilisé (pbs et
+sau) et la consommation entre les différentes substances
+phytosanitaires, l'effet d'une taxe serait-il significatif ?
+
+Autrement dit, par l'intermédiaire de la consommation par département de
+glyphosate et de la culture dominante, la production prut standard et la
+surface unitaire utile par département, nous chercherons à expliqué si
+une culture à un impact significatif sur la consomation de glyphosate et
+chercheront si cette relation est d'avantage significative en fonction
+de la pbs ou de la sau Aussi nous mesurerons l'impacte d'une taxe sur
+l'utilisation de glyophosate.
+
+On se servira pour notre étude des données du recencement agricole de
+2020 qui sont les dernière données récolté, et nous les agregerons avec
+les données de consommation de glyphosate de 2022.
+
+\subsection{Sources des données}\label{sources-des-donnuxe9es}
+
+substance
+(\url{https://www.data.gouv.fr/fr/datasets/achats-de-pesticides-par-code-postal/})
+
+vignes
+(\url{https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-partvigne20/detail/})
+
+pbs
+(\url{https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-pbs20/detail/})
+
+sau
+(\url{https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-sau20/detail/})
+
+cereales
+(\url{https://agreste.agriculture.gouv.fr/agreste-web/disaron/Carte-RA-partcereoleopro20/detail/})
+
+\subsection{Chargement et fusion des bases de
+données}\label{chargement-et-fusion-des-bases-de-donnuxe9es}
+
+Nous fusionnons les bases de données pour obtenir une seul et même base
+contenant les informations utiles. Ces bases sont réunis par la variable
+en commun ``code departement''. Les information manquante représenté par
+le symbole N/A seront comptabilisé comme une valeur nulle c'est à dire
+``0''.
+
+\section{Description des bases de
+données}\label{description-des-bases-de-donnuxe9es}
+
+Nous travaillons sur 5 bases de données que nous fusionnons pour étudier
+la consommation de substance phytosanitaires par département en fonction
+des culture sur des obsrevations de 2022.
+
+\section{Dictionnaire des variables}\label{dictionnaire-des-variables}
+
+code\_departement - numéro indicatif pour chaque département
+
+departement - nom du département
+
+qte\_glyphosate - quantité de glyphosate achetée dans le département
+(exprimé en Kg)
+
+cereales - part des cereales et oléagineux dans la sau (en \%)
+
+vignes - part de vignes dans la sau (en \%)
+
+pbs - production brut standard, production potentielle totale des
+exploitations par département, résultent des valeurs moyennes des
+rendements et des prix observés sur la période 2015 à 2019, exprimé en
+euros.
+
+log\_pbs - le logarithme de la variable pbs
+
+sau - superficie agricole utilisée (en ha.), comprenant les céréales,
+les oléagineux, protéagineux et plantes à fibres, les autres plantes
+industrielles destinées à la transformation, les cultures fourragères et
+les surfaces toujours en herbe, les légumes secs et frais, les fraises
+et les melons, les pommes de terre, les fleurs et plantes ornementales,
+les vignes, les autres cultures permanentes (vergers, petits fruits,
+pépinières ligneuses), les jachères, les jardins et vergers familiaux.
+
+log\_sau - le logarithme de la variable sau
+
+\section{Statistiques descriptives}\label{statistiques-descriptives}
+
+\subsection{Statistiques univariées}\label{statistiques-univariuxe9es}
+
+\begin{verbatim}
+##     cereales        vignes               pbs               sau        
+##  Min.   : 0.00   Length:92          Min.   :    103   Min.   :     1  
+##  1st Qu.:13.55   Class :character   1st Qu.: 337547   1st Qu.:143522  
+##  Median :37.90   Mode  :character   Median : 544628   Median :291324  
+##  Mean   :37.54                      Mean   : 670574   Mean   :269655  
+##  3rd Qu.:59.48                      3rd Qu.: 909984   3rd Qu.:385687  
+##  Max.   :84.90                      Max.   :2685717   Max.   :557179  
+##  qte_glyphosate        log_pbs          log_sau     
+##  Min.   :     1.8   Min.   : 4.635   Min.   : 0.00  
+##  1st Qu.: 15894.4   1st Qu.:12.729   1st Qu.:11.87  
+##  Median : 53155.4   Median :13.208   Median :12.58  
+##  Mean   : 59294.4   Mean   :12.896   Mean   :11.95  
+##  3rd Qu.: 95079.0   3rd Qu.:13.721   3rd Qu.:12.86  
+##  Max.   :199723.1   Max.   :14.803   Max.   :13.23
+\end{verbatim}
+
+On peut déduire de ce tableau que la quantité moyenne de Glyphosate
+acheté par département est de \textbf{``a compléter quand on aura les 9
+departements qui manques''} Kg
+
+\subsection{Statistiques bivariées}\label{statistiques-bivariuxe9es}
+
+\subsubsection{Correlations entre les
+variables}\label{correlations-entre-les-variables}
+
+\begin{center}\includegraphics[width=0.8\linewidth,]{Rapport-BNVD3_files/figure-latex/unnamed-chunk-6-1} \end{center}
+
+Nous avons enlevé la diagonale puisque la correlation d'une variable
+avec elle même est de 1.
+
+\section{Modèle d'éstimation}\label{moduxe8le-duxe9stimation}
+
+\[\log(\text{Quantite}) = \text{const} + \beta_1 \log(\text{sau}_i) + \beta_2 \log(\text{pbs}) + \beta_3 (\text{cereales}) + \beta_4 (\text{vignes}) + u\]
+
+On cherche à expliquer la quantité de glyphosate en fonction de la
+surface exploitée, de la production brute standard, de la part de
+céréale dans l'exploitation, de la part de vignes dans l'exploitation.
+Le but étant de determiner si la surface exploité a un impact
+significatif sur la quantité de substance utilisé (ici le Glyphosate),
+ainsi que determiner si la culture que ce soit céréale ou vignes a un
+impact sur la consommation de glyphosate ( savoir, si une culture est en
+moyenne plus consommatrice de glyphosate que les autres).
+
+\subsection{MCO1}\label{mco1}
+
+\begin{table}[!t]
+\fontsize{12.0pt}{14.4pt}\selectfont
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lc}
+\toprule
+  & (1) \\ 
+\midrule\addlinespace[2.5pt]
+(Intercept) & 6.243*** \\ 
+ & (1.750) \\ 
+log\_sau & 0.330 \\ 
+ & (0.227) \\ 
+log\_pbs & -0.155 \\ 
+ & (0.311) \\ 
+cereales & 0.051*** \\ 
+ & (0.007) \\ 
+vignes & 0.053** \\ 
+{} & {(0.017)} \\ 
+Num.Obs. & 80 \\ 
+R2 & 0.532 \\ 
+R2 Adj. & 0.507 \\ 
+AIC & 1939.8 \\ 
+BIC & 1954.1 \\ 
+Log.Lik. & -137.302 \\ 
+F & 21.315 \\ 
+RMSE & 1.35 \\ 
+\bottomrule
+\end{tabular*}
+\begin{minipage}{\linewidth}
++ p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001\\
+\end{minipage}
+\end{table}
+
+On remarque qu'uniquement les variables ``cereales'' et ``vignes'' sont
+signivicatives, la première au seuil de 95\% et la deuxieme au seuil de
+99\%.
+
+\subsubsection{Qualité d'ajustement}\label{qualituxe9-dajustement}
+
+\paragraph{Test de Fisher}\label{test-de-fisher}
+
+\begin{verbatim}
+## Test de Fisher pour la significativité globale du modèle :
+##  Statistique F = 21.31 
+##  Degrés de liberté (modèle) = 4 
+##  Degrés de liberté (résidus) = 75 
+##  p-value = < 0.001
+\end{verbatim}
+
+\begin{longtable}[t]{lcccc}
+\caption{\label{tab:unnamed-chunk-8}Test de Fisher - Significativité globale du modèle}\\
+\toprule
+ & Statistique.F & ddl1 & ddl2 & p.value\\
+\midrule
+value & 21.31 & 4 & 75 & < 0.001\\
+\bottomrule
+\end{longtable}
+
+Le modèle est globalement significatif.
+
+\paragraph{Analyse du R2}\label{analyse-du-r2}
+
+Pour ce qui est du R2 il est 0.53 c'est à dire que 53\% de la variance
+est expliquée par le modèle. C'est très peu, cela signifie que 47\% de
+la variance dépend d'autre facteurs non pris en compte dans le modèle.
+
+\subsubsection{Test d'hétéroscedasticité (Hypothèse
+H2)}\label{test-dhuxe9tuxe9roscedasticituxe9-hypothuxe8se-h2}
+
+\paragraph{Visualisation de
+l'hétéroscedasticité}\label{visualisation-de-lhuxe9tuxe9roscedasticituxe9}
+
+\begin{center}\includegraphics[width=0.8\linewidth,]{Rapport-BNVD3_files/figure-latex/unnamed-chunk-9-1} \end{center}
+
+\paragraph{Test par la methode de Breush
+Pagan}\label{test-par-la-methode-de-breush-pagan}
+
+\begin{verbatim}
+## Test de Breusch-Pagan :
+\end{verbatim}
+
+\begin{verbatim}
+## 
+##  studentized Breusch-Pagan test
+## 
+## data:  modele_mco
+## BP = 16.733, df = 4, p-value = 0.002178
+\end{verbatim}
+
+Conclusion \n On peut conclure de ce test que l'on constate la présence
+d'hétéroscedasticité
+
+\subsubsection{}\label{section}
+
+\end{document}
