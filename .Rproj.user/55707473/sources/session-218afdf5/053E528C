@@ -1,26 +1,24 @@
 {
-    "id": "056A2B64",
-    "path": "~/Documents/econometrie r/application/data/Data Rapport/Rapport Glyphosate.Rmd",
-    "project_path": null,
+    "id": "053E528C",
+    "path": "~/Documents/econometrie r/application/data/Data Rapport/Rapport Glyphosate L3/Rendu Projet.Rmd",
+    "project_path": "Rendu Projet.Rmd",
     "type": "r_markdown",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1755716525269.0,
+    "created": 1755728911609.0,
     "source_on_save": false,
     "relative_order": 2,
     "properties": {
         "source_window_id": "",
-        "Source": "Source",
-        "cursorPosition": "959,0",
-        "scrollLine": "0"
+        "Source": "Source"
     },
     "folds": "",
-    "lastKnownWriteTime": 1745842953,
+    "lastKnownWriteTime": 1755717196,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1745842953,
+    "last_content_update": 1755717196,
     "read_only": false,
     "read_only_alternatives": []
 }
